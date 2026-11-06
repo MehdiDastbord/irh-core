@@ -12,6 +12,9 @@
  *   API_PORT (default 4000)  WEB_PORT (default 3000)  DISCORD_BOT_TOKEN (optional)
  */
 
+// Single source of configuration: the dashboard (next start) does not read the
+// repo-root .env on its own, so load it here for every child process.
+import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
