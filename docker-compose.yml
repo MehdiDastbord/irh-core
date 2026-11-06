@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-irh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-irh}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-irh} -d ${POSTGRES_DB:-irh}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - '127.0.0.1:5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    command: ['npm', 'run', 'start:api']
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-irh}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-irh}
+      REDIS_URL: redis://redis:6379
+      PORT: '4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - '4000'
+
+  bot:
+    build: .
+    restart: unless-stopped
+    command: ['npm', 'run', 'start:bot']
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-irh}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-irh}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: ['npm', 'run', 'start:web']
+    env_file: .env
+    environment:
+      API_URL: http://api:4000
+      NEXT_PUBLIC_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+volumes:
+  postgres-data:
+  redis-data:

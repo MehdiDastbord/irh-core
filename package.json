@@ -1,0 +1,48 @@
+{
+  "name": "irh-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IRH CORE — all-in-one Discord bot and management platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,bot,web -c cyan,magenta,blue \"npm:dev:api\" \"npm:dev:bot\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w @irh/api",
+    "dev:bot": "npm run dev -w @irh/bot",
+    "dev:web": "npm run dev -w @irh/web",
+    "start": "concurrently -n api,bot,web -c cyan,magenta,blue \"npm:start:api\" \"npm:start:bot\" \"npm:start:web\"",
+    "start:all": "node scripts/supervisor.mjs",
+    "start:api": "npm run start -w @irh/api",
+    "start:bot": "npm run start -w @irh/bot",
+    "start:web": "npm run start -w @irh/web",
+    "build": "npm run build -w @irh/web",
+    "db:generate": "node scripts/db-provider.mjs",
+    "db:push": "node scripts/db-provider.mjs --push",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:studio": "prisma studio --schema prisma/schema.prisma",
+    "db:seed": "node --import tsx scripts/seed.mjs",
+    "test": "node scripts/test-db.mjs && vitest run",
+    "test:watch": "node scripts/test-db.mjs && vitest",
+    "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p packages/db/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/bot/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
+    "lint": "eslint apps packages --max-warnings=0",
+    "verify": "npm run typecheck && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^2.1.8"
+  }
+}
