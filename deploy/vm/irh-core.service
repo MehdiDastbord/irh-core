@@ -1,6 +1,6 @@
 [Unit]
 Description=IRH CORE — Discord bot, API and dashboard
-Documentation=https://github.com/irh-core/irh-core
+Documentation=https://github.com/MehdiDastbord/irh-core
 After=network-online.target
 Wants=network-online.target
 

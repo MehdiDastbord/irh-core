@@ -12,7 +12,7 @@
 # It never starts the service with an empty configuration: edit .env first.
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/CHANGE_ME/irh-core.git}"
+REPO_URL="${REPO_URL:-https://github.com/MehdiDastbord/irh-core.git}"
 APP_DIR="${APP_DIR:-/opt/irh-core}"
 APP_USER="${APP_USER:-irh}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
