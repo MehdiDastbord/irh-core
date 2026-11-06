@@ -171,6 +171,9 @@ If the dashboard is served from a different host than the API, set `NEXT_PUBLIC_
 
 ## 13. Cloudflare Containers (no server of your own)
 
+> This path requires the **Workers Paid** plan ($5/month plus usage). For a
+> zero-cost deployment, see section 14.
+
 Cloudflare Workers cannot host the bot: the Discord gateway is a long-lived
 WebSocket and Workers requests are short-lived. Cloudflare Containers runs the
 same image (`Dockerfile`) in Cloudflare's network instead, with this Worker as
@@ -246,3 +249,111 @@ container stays up and the dashboard still renders.
 - Container instances can restart during a Cloudflare rollout; the supervisor
   reconnects the bot automatically, and Drizzle/Prisma state lives in Postgres.
 - Uploads/backups written to the container filesystem are lost on restart.
+
+## 14. Free 24/7 hosting
+
+Everything here costs nothing per month. The bot needs a long-lived process, so
+it has to run on a machine that stays on — but that machine does not have to be
+yours, and it does not have to cost money.
+
+| Option | Cost | Keeps the bot online? | Notes |
+| --- | --- | --- | --- |
+| Oracle Cloud **Always Free** (Ampere A1, 4 OCPU / 24 GB on arm64) | $0 | Yes | Best fit. Card for identity verification only; instances are not charged. |
+| Google Cloud free **e2-micro** (us-central1/1/us-west1) | $0 | Yes | 1 vCPU / 1 GB — enough for the bot, dashboard and SQLite. |
+| Your own PC + Cloudflare Tunnel | $0 | Only while the PC is on | Easiest, but not "without my PC". |
+| Cloudflare Containers (§13) | $5+/month | Yes | Only if you later want zero servers to manage. |
+
+A public GitHub repo, GitHub Actions CI, Cloudflare DNS and Cloudflare Tunnel
+are all free as well. What is *not* free and cannot be made free: a Discord bot
+token (free), a Cloudflare **Containers** deployment (paid), and managed
+PostgreSQL (free tiers exist, but a VM keeps its own SQLite file at $0).
+
+### Step 1 — create the free VM
+
+Oracle Cloud: *Compute → Instances → Create*, shape **VM.Standard.A1.Flex**
+(Always Free eligible), image **Ubuntu 24.04**, add your SSH key, open ingress
+to TCP 22 (and 3000 if you want direct access before adding a tunnel).
+
+Google Cloud: create an **e2-micro** in a free-tier region with Ubuntu 24.04 and
+the same firewall rule.
+
+### Step 2 — install IRH CORE
+
+```bash
+ssh ubuntu@<server-ip>
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone https://github.com/<you>/irh-core.git /opt/irh-core
+cd /opt/irh-core
+sudo APP_ORIGIN=http://<server-ip>:3000 bash deploy/vm/install.sh
+```
+
+The script installs Node 22, runs `npm ci`, generates the Prisma client, builds
+the dashboard and registers `irh-core.service` with systemd (`Restart=always`,
+ostarts on boot). It deliberately does not start the service yet.
+
+### Step 3 — configure and start
+
+```bash
+sudo nano /opt/irh-core/.env      # SESSION_SECRET, ENCRYPTION_KEY, Discord credentials
+openssl rand -hex 32              # SESSION_SECRET
+openssl rand -hex 32              # ENCRYPTION_KEY
+
+sudo -u irh bash -c 'cd /opt/irh-core && set -a && . ./.env && set +a && npm run db:push'
+sudo systemctl start irh-core
+sudo systemctl status irh-core
+journalctl -u irh-core -f
+```
+
+Leave `DATABASE_URL` empty for SQLite (`file:./irh-core.db` inside `/opt/irh-core`,
+persisted on the VM disk). Use PostgreSQL only if you already run one.
+
+### Step 4 — free HTTPS with Cloudflare Tunnel
+
+```bash
+# on the VM
+curl -fsSL https://pkg.cloudflare.com/cloudflared/install.sh | sudo bash
+cloudflared tunnel login                 # authorises your free Cloudflare account
+cloudflared tunnel create irh-core
+cloudflared tunnel route dns irh-core irh.example.com
+sudo cloudflared service install         # runs as a systemd service, starts on boot
+```
+
+Point the tunnel at `http://localhost:3000` (add
+`--url http://localhost:3000` when creating, or edit the generated
+`/etc/cloudflared/config.yml`), then set `APP_ORIGIN=https://irh.example.com` in
+`.env` and `sudo systemctl restart irh-core`. Add
+`https://irh.example.com/api/irh/auth/callback` as the Discord redirect URI.
+
+No domain yet? `cloudflared tunnel --url http://localhost:3000` prints a free
+`*.trycloudflare.com` URL, but that URL changes on every restart.
+
+### Operating it
+
+```bash
+sudo systemctl restart irh-core          # apply .env changes
+sudo systemctl stop irh-core
+git -C /opt/irh-core pull && sudo -u irh bash -c \
+  'cd /opt/irh-core && npm ci && npm run db:generate && npm run build -w @irh/web'
+sudo systemctl restart irh-core          # after an update
+```
+
+Back up the SQLite file while the service is stopped, or point
+`DATABASE_URL` at `pg_dump`-able PostgreSQL:
+
+```bash
+sudo systemctl stop irh-core
+sudo cp /opt/irh-core/irh-core.db /var/backups/irh-core-$(date +%F).db
+sudo systemctl start irh-core
+```
+
+### Free-tier caveats
+
+- Oracle reclaims Always Free instances that stay idle on the *paid* shapes; keep
+the instance busy enough (the bot's gateway connection counts) or start it from
+the console if it is ever stopped.
+- Free tiers have no SLA and can be capacity-limited at signup; retry another
+  region/availability domain if the shape is unavailable.
+- ARM64 (Oracle A1) is supported: Prisma ships a `linux-arm64` engine and the
+  image/build above is pure Node.
+- One bot process per token — never run the VM service and a local copy with the
+  same `DISCORD_BOT_TOKEN` at the same time.

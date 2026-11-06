@@ -1,0 +1,31 @@
+[Unit]
+Description=IRH CORE — Discord bot, API and dashboard
+Documentation=https://github.com/irh-core/irh-core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=irh
+Group=irh
+WorkingDirectory=/opt/irh-core
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/irh-core/.env
+ExecStart=/usr/bin/node scripts/supervisor.mjs
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=irh-core
+
+# Hardening: the app only needs its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/irh-core
+
+[Install]
+WantedBy=multi-user.target

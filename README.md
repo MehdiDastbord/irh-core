@@ -118,4 +118,4 @@ Live Discord verification (login, gateway events, real command execution) requir
 - Discord AutoMod is synced where supported; IRH's own filters still run for full control.
 - Bulk message imports, voice audio, and Discord's premium features are out of scope by design.
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, backups, monitoring and the security checklist.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production deployment, backups, monitoring and the security checklist. For a zero-cost 24/7 host (free Oracle Cloud / GCP VM plus a free Cloudflare Tunnel), run `deploy/vm/install.sh` and follow section 14.
