@@ -1,0 +1,4 @@
+# Containers run Linux; keep scripts LF even though the repo is edited on Windows.
+*.sh text eol=lf
+deploy/cloudflare/entrypoint.sh text eol=lf
+Dockerfile text eol=lf

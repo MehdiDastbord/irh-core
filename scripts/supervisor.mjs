@@ -39,6 +39,7 @@ const services = [
   {
     name: 'web',
     args: [nextCli, 'start', '-p', webPort],
+    cwd: join(root, 'apps', 'web'),
     enabled: hasBuild,
     skipReason: 'apps/web/.next/BUILD_ID is missing — run `npm run build -w @irh/web`',
   },
@@ -65,7 +66,7 @@ function prefix(name, chunk) {
 
 function start(service) {
   const child = spawn(node, service.args, {
-    cwd: root,
+    cwd: service.cwd ?? root,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });

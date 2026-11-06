@@ -168,3 +168,81 @@ If the dashboard is served from a different host than the API, set `NEXT_PUBLIC_
 - Welcome cards render text only (no avatar compositing).
 - YouTube API quotas apply when `YOUTUBE_API_KEY` is configured; otherwise the public RSS feed is used.
 - Realtime broadcasts are per-process; multi-replica deployments need sticky sessions or a single realtime replica.
+
+## 13. Cloudflare Containers (no server of your own)
+
+Cloudflare Workers cannot host the bot: the Discord gateway is a long-lived
+WebSocket and Workers requests are short-lived. Cloudflare Containers runs the
+same image (`Dockerfile`) in Cloudflare's network instead, with this Worker as
+the public entry point:
+
+- `cloudflare/worker.ts` — one container instance (`IrhCoreContainer`), every
+  request proxied to the dashboard on port 3000; a `*/5 * * * *` cron pings
+  `/api/irh/system/health` so the gateway connection is not dropped between
+  dashboard visits.
+- `wrangler.jsonc` — container definition, Durable Object export and cron.
+- `deploy/cloudflare/entrypoint.sh` — applies the PostgreSQL schema on boot,
+  then hands over to `scripts/supervisor.mjs` (api + dashboard + bot).
+
+### Requirements
+
+- Workers **Paid** plan ($5/month). Containers are not available on the free plan.
+- A **PostgreSQL** database reachable over the internet: SQLite inside a
+  container is wiped on every restart. Use Neon, Aiven, or your own server.
+- Docker running locally — `wrangler deploy` builds and pushes the image.
+- `linux/amd64` image (Apple Silicon and ARM machines included).
+
+### Steps
+
+```bash
+npx wrangler login                 # or: npm run cf:login
+
+npx wrangler secret put DATABASE_URL        # postgresql://user:pass@host/db?sslmode=require
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put ENCRYPTION_KEY
+npx wrangler secret put DISCORD_CLIENT_ID
+npx wrangler secret put DISCORD_CLIENT_SECRET
+npx wrangler secret put DISCORD_BOT_TOKEN
+npx wrangler secret put DISCORD_DEV_GUILD_ID # optional
+npx wrangler secret put BOT_OWNER_IDS        # optional
+
+npx wrangler deploy                # or: npm run cf:deploy
+```
+
+`wrangler deploy` prints the public URL, for example
+`https://irh-core.<subdomain>.workers.dev`. Set it as `APP_ORIGIN` and redeploy
+so OAuth redirects and CSRF checks match the deployment:
+
+```bash
+npx wrangler secret put APP_ORIGIN   # https://irh-core.<subdomain>.workers.dev
+npx wrangler deploy
+```
+
+In the Discord developer portal add `<APP_ORIGIN>/api/irh/auth/callback` as a
+redirect URI before signing in.
+
+### Cost
+
+`instance_type = "basic"` (1/4 vCPU, 1 GiB, 4 GB disk) running 24/7 uses about
+730 GiB-hours of the 25 GiB-hours included in Workers Paid, so expect roughly
+$10-12/month plus egress in total. `max_instances = 1` keeps a single instance.
+Drop `instance_type` to `lite` or let the container sleep by removing the cron
+trigger if you want costs near the $5 base.
+
+### Verify
+
+```bash
+npx wrangler tail                   # live logs from the Worker and container
+curl https://irh-core.<subdomain>.workers.dev/api/irh/system/health
+```
+
+A `database:false` value means `DATABASE_URL` is wrong or unreachable; the
+container stays up and the dashboard still renders.
+
+### Limitations
+
+- Long-running CPU work and large memory use cost more; the bot is I/O bound so
+  `basic` is sufficient for a few hundred servers.
+- Container instances can restart during a Cloudflare rollout; the supervisor
+  reconnects the bot automatically, and Drizzle/Prisma state lives in Postgres.
+- Uploads/backups written to the container filesystem are lost on restart.

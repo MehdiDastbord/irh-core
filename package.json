@@ -17,6 +17,8 @@
     "dev:web": "npm run dev -w @irh/web",
     "start": "concurrently -n api,bot,web -c cyan,magenta,blue \"npm:start:api\" \"npm:start:bot\" \"npm:start:web\"",
     "start:all": "node scripts/supervisor.mjs",
+    "cf:login": "wrangler login",
+    "cf:deploy": "wrangler deploy",
     "start:api": "npm run start -w @irh/api",
     "start:bot": "npm run start -w @irh/bot",
     "start:web": "npm run start -w @irh/web",
@@ -34,6 +36,7 @@
     "verify": "npm run typecheck && npm run lint && npm test"
   },
   "devDependencies": {
+    "@cloudflare/containers": "^0.3.7",
     "@eslint/js": "^9.16.0",
     "@types/node": "^22.10.2",
     "concurrently": "^9.1.0",
@@ -43,6 +46,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wrangler": "^4.158.0"
   }
 }
